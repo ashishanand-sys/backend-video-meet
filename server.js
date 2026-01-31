@@ -14,7 +14,7 @@ const httpServer = http.createServer(app);
 // Attach Socket.io (signaling only)
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: "https://celadon-cactus-c8ab5d.netlify.app/",
     methods: ["GET", "POST"],
   },
 });
