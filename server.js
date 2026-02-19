@@ -14,14 +14,16 @@ const httpServer = http.createServer(app);
 // Attach Socket.io (signaling only)
 const io = new Server(httpServer, {
   cors: {
-    origin: "https://celadon-cactus-c8ab5d.netlify.app/",
+    origin:[process.env.CLIENT_URL_OLD, process.env.CLIENT_URL_NEW],
     methods: ["GET", "POST"],
   },
 });
 
 // Keep global tracking of streams if needed later
-const streamRooms = new Map();
+//const streamRooms = new Map();
 
+
+//handle socket connections
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
@@ -51,6 +53,8 @@ io.on("connection", (socket) => {
     io.to(payload.target).emit("ice-candidate", payload);
   });
 
+  
+
   socket.on("disconnect", () => {
     console.log("Socket disconnected:", socket.id);
     // Broadcast to all rooms this socket was in
@@ -59,7 +63,7 @@ io.on("connection", (socket) => {
     // For this simple app, we can just let clients handle closure on failure,
     // OR significantly, we can use the 'disconnecting' event to see rooms.
   });
-
+  
   socket.on("disconnecting", () => {
     const rooms = [...socket.rooms];
     rooms.forEach((room) => {
