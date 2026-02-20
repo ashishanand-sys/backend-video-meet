@@ -22,6 +22,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       minlength: 6,
       select: false // Don't return password by default
+    },
+    profilePicture: {
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }
