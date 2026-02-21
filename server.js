@@ -11,20 +11,31 @@ dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
-// Create HTTP server from Express
+// ===== PRODUCTION ALLOWED ORIGINS =====
+const allowedOrigins = [
+  process.env.CLIENT_URL_OLD,
+  process.env.CLIENT_URL_NEW,
+ 
+].filter(Boolean);
+
+if (allowedOrigins.length === 0) {
+  throw new Error("No CLIENT_URL configured for production");
+}
+
+// Create HTTP server
 const httpServer = http.createServer(app);
 
-// Attach Socket.io
+// Attach Socket.io (STRICT CORS)
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
 
 
-// ================= SOCKET AUTH MIDDLEWARE =================
+// ================= SOCKET AUTH =================
 io.use(async (socket, next) => {
   try {
     const parsedCookies = cookie.parse(
@@ -41,9 +52,13 @@ io.use(async (socket, next) => {
 
     socket.userId = decoded.id;
 
-    // Look up username for display in meeting
     const user = await User.findById(decoded.id).select("username");
-    socket.username = user ? user.username : "Guest";
+
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+
+    socket.username = user.username;
 
     next();
   } catch (err) {
@@ -56,7 +71,6 @@ io.use(async (socket, next) => {
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // ===== JOIN ROOM =====
   socket.on("join-room", (roomId, callback) => {
     if (!socket.userId) {
       if (typeof callback === "function") {
@@ -70,35 +84,36 @@ io.on("connection", (socket) => {
 
     socket.join(roomId);
 
-    // Notify others with username
     socket.to(roomId).emit("user-connected", {
       socketId: socket.id,
       username: socket.username,
     });
 
-    // Send list of existing users (with usernames) to the joiner
     const existingUsers = [];
     const roomSockets = io.sockets.adapter.rooms.get(roomId);
+
     if (roomSockets) {
       for (const sid of roomSockets) {
         if (sid !== socket.id) {
           const s = io.sockets.sockets.get(sid);
           existingUsers.push({
             socketId: sid,
-            username: s ? s.username : "Guest",
+            username: s?.username || "User",
           });
         }
       }
     }
+
     socket.emit("existing-users", existingUsers);
 
     if (typeof callback === "function") {
-      callback({ success: true, username: socket.username });
+      callback({
+        success: true,
+        username: socket.username,
+      });
     }
   });
 
-
-  // ===== WEBRTC SIGNALING =====
   socket.on("offer", (payload) => {
     io.to(payload.target).emit("offer", payload);
   });
@@ -107,12 +122,10 @@ io.on("connection", (socket) => {
     io.to(payload.target).emit("answer", payload);
   });
 
-  socket.on("ice-candidate", (payload) => { 
+  socket.on("ice-candidate", (payload) => {
     io.to(payload.target).emit("ice-candidate", payload);
   });
 
-
-  // ===== DISCONNECT =====
   socket.on("disconnecting", () => {
     const rooms = [...socket.rooms];
 

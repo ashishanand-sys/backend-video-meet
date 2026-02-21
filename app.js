@@ -8,14 +8,23 @@ import cookieParser from "cookie-parser";
 dotenv.config();
 const app = express();
 
-// app.use(cors({
-//   origin: [process.env.CLIENT_URL_OLD, process.env.CLIENT_URL_NEW, process.env.VITE_API_URL,"http://localhost:5173"],
-//   credentials: true
-// }));
+const allowedOrigins = [
+  process.env.CLIENT_URL_OLD,
+  process.env.CLIENT_URL_NEW,
+  
+].filter(Boolean);
 
 app.use(cors({
-  origin: ["http://localhost:5173"],
-  credentials: true
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
